@@ -1,3 +1,4 @@
+telegram
 requests
 curl_cffi
 flask
