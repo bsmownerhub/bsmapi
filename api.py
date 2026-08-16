@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-SHOPIFY CHECKER BOT v6.0 - ULTIMATE EDITION
-All commands: /sh, /msh, /mtxt, /addsite, /addproxy, /chksite, /chkproxy, /sites, /proxies, /delsite, /delproxy
+SHOPIFY CHECKER BOT v6.1 - UNIVERSAL EDITION
+Works with Python 3.10+, no curl_cffi required
+Commands: /sh, /msh, /mtxt, /addsite, /delsite, /sites, /chksite
+          /addproxy, /delproxy, /proxies, /chkproxy
 (C) 2026 CAT Industries. All rights reserved.
 """
 
@@ -24,13 +26,49 @@ from datetime import datetime
 from collections import deque
 import concurrent.futures
 
+# ─── TRY CURL_CFFI, FALLBACK TO REQUESTS ──────────────────────────
+try:
+    from curl_cffi import requests
+    from curl_cffi.requests import Session
+    CURL_CFFI_AVAILABLE = True
+    print("✅ Using curl_cffi for advanced TLS fingerprinting")
+except ImportError:
+    import requests
+    CURL_CFFI_AVAILABLE = False
+    print("⚠️ curl_cffi not available, using standard requests")
+    # Create a Session class that mimics curl_cffi
+    class Session:
+        def __init__(self, impersonate=None, timeout=30):
+            self.session = requests.Session()
+            self.timeout = timeout
+            self.headers = {}
+            self.proxies = {}
+            self.impersonate = impersonate
+        
+        def get(self, url, **kwargs):
+            kwargs.setdefault('timeout', self.timeout)
+            if self.proxies:
+                kwargs.setdefault('proxies', self.proxies)
+            headers = self.headers.copy()
+            if 'headers' in kwargs:
+                headers.update(kwargs.pop('headers'))
+            return self.session.get(url, headers=headers, **kwargs)
+        
+        def post(self, url, data=None, json=None, **kwargs):
+            kwargs.setdefault('timeout', self.timeout)
+            if self.proxies:
+                kwargs.setdefault('proxies', self.proxies)
+            headers = self.headers.copy()
+            if 'headers' in kwargs:
+                headers.update(kwargs.pop('headers'))
+            return self.session.post(url, data=data, json=json, headers=headers, **kwargs)
+        
+        def close(self):
+            self.session.close()
+
 # Telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-
-# curl_cffi for TLS impersonation
-from curl_cffi import requests
-from curl_cffi.requests import Session
 
 # ──────────────────────── CONFIG ─────────────────────────────────────
 BOT_TOKEN = "8955638202:AAH_kuainJLiiVQi9pg3sUEjhL6HwO2ZiKw"
@@ -132,9 +170,14 @@ class ShopifyChecker:
         self.session = None
     
     def _get_session(self):
-        impersonate = random.choice(self.browser_profiles)
+        impersonate = random.choice(self.browser_profiles) if CURL_CFFI_AVAILABLE else None
         user_agent = random.choice(self.user_agents)
-        session = Session(impersonate=impersonate, timeout=30)
+        
+        if CURL_CFFI_AVAILABLE:
+            session = Session(impersonate=impersonate, timeout=30)
+        else:
+            session = Session(timeout=30)
+        
         session.headers.update({
             'User-Agent': user_agent,
             'Accept-Language': 'en-US,en;q=0.9',
@@ -835,7 +878,11 @@ class ShopifyChecker:
             "shopify-identification-signature": ident_sig,
         }
         
-        session = requests.Session()
+        if CURL_CFFI_AVAILABLE:
+            session = requests.Session()
+        else:
+            session = requests.Session()
+        
         if self.proxy_url:
             session.proxies = {'http': self.proxy_url, 'https': self.proxy_url}
         
@@ -1485,7 +1532,6 @@ def check_site_status(site: str) -> dict:
         resp = session.get(site, timeout=10, allow_redirects=True)
         status = resp.status_code
         if status == 200:
-            # Check if it's a Shopify site
             if 'shopify' in resp.text or 'myshopify.com' in site:
                 return {"status": "online", "code": status, "type": "shopify"}
             return {"status": "online", "code": status, "type": "unknown"}
@@ -1501,7 +1547,6 @@ def check_proxy_status(proxy_url: str) -> dict:
     try:
         session = requests.Session()
         session.proxies = {'http': proxy_url, 'https': proxy_url}
-        session.timeout = 15
         resp = session.get('https://api.ipify.org?format=json', timeout=15)
         if resp.status_code == 200:
             data = resp.json()
@@ -1545,7 +1590,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"<b>🐱 Shadow Hacker Bot v6.0 - ULTIMATE</b>\n\n"
+        f"<b>🐱 Shadow Hacker Bot v6.1 - UNIVERSAL</b>\n\n"
         f"Welcome, <b>{update.effective_user.first_name}</b>!\n\n"
         f"<b>Checker Commands:</b>\n"
         f"<code>/sh &lt;site&gt;</code> - Single checkout\n"
@@ -1561,7 +1606,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"<code>/delproxy &lt;proxy&gt;</code> - Remove proxy\n"
         f"<code>/proxies</code> - List all proxies\n"
         f"<code>/chkproxy &lt;proxy&gt;</code> - Check proxy status\n\n"
-        f"<i>Full address database | PCI tokenization | All GQL flows</i>",
+        f"<i>Full address database | PCI tokenization | All GQL flows</i>\n"
+        f"<i>curl_cffi: {'✅ Available' if CURL_CFFI_AVAILABLE else '❌ Using fallback'}</i>",
         reply_markup=reply_markup,
         parse_mode='HTML'
     )
@@ -1981,7 +2027,8 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ──────────────────────── MAIN ─────────────────────────────────────
 def main():
-    print("🐱 Shadow Hacker Bot v6.0 - ULTIMATE EDITION")
+    print("🐱 Shadow Hacker Bot v6.1 - UNIVERSAL EDITION")
+    print(f"📦 curl_cffi: {'✅ Available' if CURL_CFFI_AVAILABLE else '❌ Using fallback'}")
     print("Commands: /sh, /msh, /mtxt, /addsite, /delsite, /sites, /chksite")
     print("          /addproxy, /delproxy, /proxies, /chkproxy")
     
@@ -2015,6 +2062,7 @@ def main():
     application.add_error_handler(error_handler)
     
     print("✅ Bot is running! All commands ready.")
+    print(f"🤖 Bot Token: {BOT_TOKEN[:10]}...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
