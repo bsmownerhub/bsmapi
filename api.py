@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-SHOPIFY CHECKER BOT v6.1 - UNIVERSAL EDITION
-Works with Python 3.10+, no curl_cffi required
-Commands: /sh, /msh, /mtxt, /addsite, /delsite, /sites, /chksite
-          /addproxy, /delproxy, /proxies, /chkproxy
+SHOPIFY CHECKER BOT v6.2 - LEGACY COMPATIBLE
+Works with python-telegram-bot v13.x to v20.x
+Commands: /sh, /msh, /mtxt, /addsite, /delsite, /sites, /chksite, /addproxy, /delproxy, /proxies, /chkproxy
 (C) 2026 CAT Industries. All rights reserved.
 """
 
@@ -66,9 +65,20 @@ except ImportError:
         def close(self):
             self.session.close()
 
-# Telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+# ─── TELEGRAM - COMPATIBLE IMPORT ──────────────────────────────────
+try:
+    # Try v20+ style
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+    TELEGRAM_V20 = True
+except ImportError:
+    # Fallback to v13 style
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+    TELEGRAM_V20 = False
+    # Create dummy ContextTypes for compatibility
+    class ContextTypes:
+        DEFAULT_TYPE = None
 
 # ──────────────────────── CONFIG ─────────────────────────────────────
 BOT_TOKEN = "8955638202:AAH_kuainJLiiVQi9pg3sUEjhL6HwO2ZiKw"
@@ -1460,9 +1470,6 @@ user_sessions = {}
 check_queue = deque()
 check_results = []
 
-async def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
-
 def load_cards():
     if not os.path.exists(CARDS_PATH):
         return []
@@ -1522,7 +1529,6 @@ def delete_proxy(proxy: str) -> bool:
     return True
 
 def check_site_status(site: str) -> dict:
-    """Quickly check if a site is accessible."""
     site = site.strip()
     if not site.startswith(('http://', 'https://')):
         site = 'https://' + site
@@ -1540,7 +1546,6 @@ def check_site_status(site: str) -> dict:
         return {"status": "error", "code": str(e), "type": "unknown"}
 
 def check_proxy_status(proxy_url: str) -> dict:
-    """Quickly test if a proxy works."""
     proxy_url = proxy_url.strip()
     if '://' not in proxy_url:
         proxy_url = 'http://' + proxy_url
@@ -1572,463 +1577,889 @@ def get_random_sites(count: int = 20) -> List[str]:
     random.shuffle(sites)
     return sites[:count]
 
-# ─── /start ──────────────────────────────────────────────────────────
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    user_sessions[user_id] = {"state": "main"}
+# ─── V20+ HANDLERS ──────────────────────────────────────────────────
+if TELEGRAM_V20:
+    async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        return update.effective_user.id in ADMIN_IDS
     
-    keyboard = [
-        [InlineKeyboardButton("🔍 /sh <site> - Single", callback_data="single")],
-        [InlineKeyboardButton("🚀 /msh - Multi 20 Sites", callback_data="multi")],
-        [InlineKeyboardButton("📁 /mtxt - File Checker", callback_data="file")],
-        [InlineKeyboardButton("📊 Dashboard", callback_data="dashboard")],
-        [InlineKeyboardButton("👤 Profile", callback_data="profile")],
-    ]
-    if await is_admin(user_id):
-        keyboard.append([InlineKeyboardButton("👑 Admin", callback_data="admin")])
-        keyboard.append([InlineKeyboardButton("💻 /cmd", callback_data="cmd")])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        f"<b>🐱 Shadow Hacker Bot v6.1 - UNIVERSAL</b>\n\n"
-        f"Welcome, <b>{update.effective_user.first_name}</b>!\n\n"
-        f"<b>Checker Commands:</b>\n"
-        f"<code>/sh &lt;site&gt;</code> - Single checkout\n"
-        f"<code>/msh</code> - Check 20 random sites\n"
-        f"<code>/mtxt</code> - Check sites from sites.txt\n\n"
-        f"<b>Manage Sites:</b>\n"
-        f"<code>/addsite &lt;url&gt;</code> - Add site\n"
-        f"<code>/delsite &lt;url&gt;</code> - Remove site\n"
-        f"<code>/sites</code> - List all sites\n"
-        f"<code>/chksite &lt;url&gt;</code> - Check site status\n\n"
-        f"<b>Manage Proxies:</b>\n"
-        f"<code>/addproxy &lt;proxy&gt;</code> - Add proxy\n"
-        f"<code>/delproxy &lt;proxy&gt;</code> - Remove proxy\n"
-        f"<code>/proxies</code> - List all proxies\n"
-        f"<code>/chkproxy &lt;proxy&gt;</code> - Check proxy status\n\n"
-        f"<i>Full address database | PCI tokenization | All GQL flows</i>\n"
-        f"<i>curl_cffi: {'✅ Available' if CURL_CFFI_AVAILABLE else '❌ Using fallback'}</i>",
-        reply_markup=reply_markup,
-        parse_mode='HTML'
-    )
-
-# ─── /sh - Single Check ─────────────────────────────────────────────
-async def single_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user_id = update.effective_user.id
+        user_sessions[user_id] = {"state": "main"}
+        
+        keyboard = [
+            [InlineKeyboardButton("🔍 /sh <site> - Single", callback_data="single")],
+            [InlineKeyboardButton("🚀 /msh - Multi 20 Sites", callback_data="multi")],
+            [InlineKeyboardButton("📁 /mtxt - File Checker", callback_data="file")],
+            [InlineKeyboardButton("📊 Dashboard", callback_data="dashboard")],
+            [InlineKeyboardButton("👤 Profile", callback_data="profile")],
+        ]
+        if update.effective_user.id in ADMIN_IDS:
+            keyboard.append([InlineKeyboardButton("👑 Admin", callback_data="admin")])
+            keyboard.append([InlineKeyboardButton("💻 /cmd", callback_data="cmd")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "❌ Please provide a site URL.\n"
-            "Example: <code>/sh https://example.myshopify.com</code>",
+            f"<b>🐱 Shadow Hacker Bot v6.2 - LEGACY</b>\n\n"
+            f"Welcome, <b>{update.effective_user.first_name}</b>!\n\n"
+            f"<b>Checker Commands:</b>\n"
+            f"<code>/sh &lt;site&gt;</code> - Single checkout\n"
+            f"<code>/msh</code> - Check 20 random sites\n"
+            f"<code>/mtxt</code> - Check sites from sites.txt\n\n"
+            f"<b>Manage Sites:</b>\n"
+            f"<code>/addsite &lt;url&gt;</code> - Add site\n"
+            f"<code>/delsite &lt;url&gt;</code> - Remove site\n"
+            f"<code>/sites</code> - List all sites\n"
+            f"<code>/chksite &lt;url&gt;</code> - Check site status\n\n"
+            f"<b>Manage Proxies:</b>\n"
+            f"<code>/addproxy &lt;proxy&gt;</code> - Add proxy\n"
+            f"<code>/delproxy &lt;proxy&gt;</code> - Remove proxy\n"
+            f"<code>/proxies</code> - List all proxies\n"
+            f"<code>/chkproxy &lt;proxy&gt;</code> - Check proxy status\n\n"
+            f"<i>curl_cffi: {'✅ Available' if CURL_CFFI_AVAILABLE else '❌ Using fallback'}</i>",
+            reply_markup=reply_markup,
             parse_mode='HTML'
         )
-        return
     
-    site = args[0].strip()
-    if not site.startswith(('http://', 'https://')):
-        site = 'https://' + site
-    
-    await update.message.reply_text(f"🔍 Starting single check on <b>{site}</b>...", parse_mode='HTML')
-    
-    cards = load_cards()
-    if not cards:
-        await update.message.reply_text("❌ No cards found. Add cards to test.txt")
-        return
-    
-    card = random.choice(cards)
-    
-    try:
-        checker = ShopifyChecker()
-        result = await asyncio.get_event_loop().run_in_executor(None, checker.run_checkout, site, card)
+    async def single_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/sh https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
         
-        status_emoji = "✅" if result.status == CheckStatus.CHARGED else "⚠️" if result.status == CheckStatus.APPROVED else "❌" if result.status == CheckStatus.DECLINED else "🔴"
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
         
-        await update.message.reply_text(
-            f"<b>📊 Single Check Result</b>\n\n"
-            f"🛒 <b>Site:</b> {result.shop_url}\n"
-            f"💳 <b>Card:</b> {result.card[:10]}...\n"
-            f"{status_emoji} <b>Status:</b> {result.status.name}\n"
-            f"📝 <b>Code:</b> {result.status_code or 'N/A'}\n"
-            f"💰 <b>Amount:</b> ${result.amount} {result.currency}\n"
-            f"🌍 <b>Country:</b> {result.site_name}\n\n"
-            f"<i>Time: {datetime.now().strftime('%H:%M:%S')}</i>",
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
-
-# ─── /msh - Multi 20 Sites ──────────────────────────────────────────
-async def multi_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("🚀 Starting multi-check on 20 random sites...")
-    
-    cards = load_cards()
-    if not cards:
-        await update.message.reply_text("❌ No cards found.")
-        return
-    
-    sites = get_random_sites(20)
-    if not sites:
-        await update.message.reply_text("❌ No sites available.")
-        return
-    
-    progress_msg = await update.message.reply_text("⏳ Processing 20 sites... 0/20")
-    results = []
-    completed = 0
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_site = {}
-        for site in sites:
-            card = random.choice(cards)
-            checker = ShopifyChecker()
-            future = executor.submit(checker.run_checkout, site, card)
-            future_to_site[future] = site
+        await update.message.reply_text(f"🔍 Starting single check on <b>{site}</b>...", parse_mode='HTML')
         
-        for future in concurrent.futures.as_completed(future_to_site):
-            site = future_to_site[future]
-            try:
-                result = future.result(timeout=120)
-                results.append(result)
-                completed += 1
-                if completed % 2 == 0 or completed == len(sites):
-                    await progress_msg.edit_text(f"⏳ Processing 20 sites... {completed}/{len(sites)}")
-            except Exception as e:
-                results.append(CheckResult(card="", shop_url=site, status=CheckStatus.ERROR, error=e))
-                completed += 1
-    
-    charged = sum(1 for r in results if r.status == CheckStatus.CHARGED)
-    approved = sum(1 for r in results if r.status == CheckStatus.APPROVED)
-    declined = sum(1 for r in results if r.status == CheckStatus.DECLINED)
-    errors = sum(1 for r in results if r.status == CheckStatus.ERROR)
-    
-    with open(RESULTS_PATH, "a") as f:
-        f.write(f"\n--- Multi Check at {datetime.now()} ---\n")
-        for r in results:
-            f.write(f"{r.shop_url} | {r.status.name} | {r.amount}\n")
-    
-    await progress_msg.edit_text(
-        f"<b>📊 Multi-Check Complete!</b>\n\n"
-        f"🛒 <b>Sites:</b> {len(results)}\n"
-        f"✅ <b>Charged:</b> {charged}\n"
-        f"⚠️ <b>Approved:</b> {approved}\n"
-        f"❌ <b>Declined:</b> {declined}\n"
-        f"🔴 <b>Errors:</b> {errors}\n\n"
-        f"📁 Results saved to {RESULTS_PATH}",
-        parse_mode='HTML'
-    )
-
-# ─── /mtxt - File Checker ────────────────────────────────────────────
-async def file_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    sites = load_sites()
-    if not sites:
-        await update.message.reply_text(f"❌ No sites in <code>{SITES_PATH}</code>", parse_mode='HTML')
-        return
-    
-    cards = load_cards()
-    if not cards:
-        await update.message.reply_text("❌ No cards found.")
-        return
-    
-    await update.message.reply_text(f"📁 Starting file checker on <b>{len(sites)}</b> sites...", parse_mode='HTML')
-    progress_msg = await update.message.reply_text("⏳ Starting... 0/{}".format(len(sites)))
-    
-    results = []
-    for idx, site in enumerate(sites, 1):
-        await progress_msg.edit_text(f"⏳ Checking {idx}/{len(sites)}: {site[:40]}...")
+        cards = load_cards()
+        if not cards:
+            await update.message.reply_text("❌ No cards found. Add cards to test.txt")
+            return
+        
         card = random.choice(cards)
+        
         try:
             checker = ShopifyChecker()
             result = await asyncio.get_event_loop().run_in_executor(None, checker.run_checkout, site, card)
-            results.append(result)
+            
+            status_emoji = "✅" if result.status == CheckStatus.CHARGED else "⚠️" if result.status == CheckStatus.APPROVED else "❌" if result.status == CheckStatus.DECLINED else "🔴"
+            
+            await update.message.reply_text(
+                f"<b>📊 Single Check Result</b>\n\n"
+                f"🛒 <b>Site:</b> {result.shop_url}\n"
+                f"💳 <b>Card:</b> {result.card[:10]}...\n"
+                f"{status_emoji} <b>Status:</b> {result.status.name}\n"
+                f"📝 <b>Code:</b> {result.status_code or 'N/A'}\n"
+                f"💰 <b>Amount:</b> ${result.amount} {result.currency}\n"
+                f"🌍 <b>Country:</b> {result.site_name}\n\n"
+                f"<i>Time: {datetime.now().strftime('%H:%M:%S')}</i>",
+                parse_mode='HTML'
+            )
         except Exception as e:
-            results.append(CheckResult(card="", shop_url=site, status=CheckStatus.ERROR, error=e))
-        await asyncio.sleep(0.3)
+            await update.message.reply_text(f"❌ Error: {str(e)}")
     
-    charged = sum(1 for r in results if r.status == CheckStatus.CHARGED)
-    approved = sum(1 for r in results if r.status == CheckStatus.APPROVED)
-    declined = sum(1 for r in results if r.status == CheckStatus.DECLINED)
-    errors = sum(1 for r in results if r.status == CheckStatus.ERROR)
-    
-    with open(RESULTS_PATH, "a") as f:
-        f.write(f"\n--- File Check at {datetime.now()} ---\n")
-        for r in results:
-            f.write(f"{r.shop_url} | {r.status.name} | {r.amount}\n")
-    
-    await progress_msg.edit_text(
-        f"<b>📊 File Check Complete!</b>\n\n"
-        f"📁 <b>Sites:</b> {len(results)}\n"
-        f"✅ <b>Charged:</b> {charged}\n"
-        f"⚠️ <b>Approved:</b> {approved}\n"
-        f"❌ <b>Declined:</b> {declined}\n"
-        f"🔴 <b>Errors:</b> {errors}\n\n"
-        f"📁 Results saved to {RESULTS_PATH}",
-        parse_mode='HTML'
-    )
-
-# ─── /addsite ─────────────────────────────────────────────────────────
-async def add_site_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "❌ Please provide a site URL.\n"
-            "Example: <code>/addsite https://example.myshopify.com</code>",
+    async def multi_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await update.message.reply_text("🚀 Starting multi-check on 20 random sites...")
+        
+        cards = load_cards()
+        if not cards:
+            await update.message.reply_text("❌ No cards found.")
+            return
+        
+        sites = get_random_sites(20)
+        if not sites:
+            await update.message.reply_text("❌ No sites available.")
+            return
+        
+        progress_msg = await update.message.reply_text("⏳ Processing 20 sites... 0/20")
+        results = []
+        completed = 0
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_site = {}
+            for site in sites:
+                card = random.choice(cards)
+                checker = ShopifyChecker()
+                future = executor.submit(checker.run_checkout, site, card)
+                future_to_site[future] = site
+            
+            for future in concurrent.futures.as_completed(future_to_site):
+                site = future_to_site[future]
+                try:
+                    result = future.result(timeout=120)
+                    results.append(result)
+                    completed += 1
+                    if completed % 2 == 0 or completed == len(sites):
+                        await progress_msg.edit_text(f"⏳ Processing 20 sites... {completed}/{len(sites)}")
+                except Exception as e:
+                    results.append(CheckResult(card="", shop_url=site, status=CheckStatus.ERROR, error=e))
+                    completed += 1
+        
+        charged = sum(1 for r in results if r.status == CheckStatus.CHARGED)
+        approved = sum(1 for r in results if r.status == CheckStatus.APPROVED)
+        declined = sum(1 for r in results if r.status == CheckStatus.DECLINED)
+        errors = sum(1 for r in results if r.status == CheckStatus.ERROR)
+        
+        with open(RESULTS_PATH, "a") as f:
+            f.write(f"\n--- Multi Check at {datetime.now()} ---\n")
+            for r in results:
+                f.write(f"{r.shop_url} | {r.status.name} | {r.amount}\n")
+        
+        await progress_msg.edit_text(
+            f"<b>📊 Multi-Check Complete!</b>\n\n"
+            f"🛒 <b>Sites:</b> {len(results)}\n"
+            f"✅ <b>Charged:</b> {charged}\n"
+            f"⚠️ <b>Approved:</b> {approved}\n"
+            f"❌ <b>Declined:</b> {declined}\n"
+            f"🔴 <b>Errors:</b> {errors}\n\n"
+            f"📁 Results saved to {RESULTS_PATH}",
             parse_mode='HTML'
         )
-        return
     
-    site = args[0].strip()
-    if not site.startswith(('http://', 'https://')):
-        site = 'https://' + site
-    
-    if add_site(site):
-        await update.message.reply_text(f"✅ Added site: <code>{site}</code>", parse_mode='HTML')
-    else:
-        await update.message.reply_text(f"⚠️ Site already exists or invalid: <code>{site}</code>", parse_mode='HTML')
-
-# ─── /delsite ─────────────────────────────────────────────────────────
-async def del_site_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "❌ Please provide a site URL.\n"
-            "Example: <code>/delsite https://example.myshopify.com</code>",
+    async def file_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        sites = load_sites()
+        if not sites:
+            await update.message.reply_text(f"❌ No sites in <code>{SITES_PATH}</code>", parse_mode='HTML')
+            return
+        
+        cards = load_cards()
+        if not cards:
+            await update.message.reply_text("❌ No cards found.")
+            return
+        
+        await update.message.reply_text(f"📁 Starting file checker on <b>{len(sites)}</b> sites...", parse_mode='HTML')
+        progress_msg = await update.message.reply_text("⏳ Starting... 0/{}".format(len(sites)))
+        
+        results = []
+        for idx, site in enumerate(sites, 1):
+            await progress_msg.edit_text(f"⏳ Checking {idx}/{len(sites)}: {site[:40]}...")
+            card = random.choice(cards)
+            try:
+                checker = ShopifyChecker()
+                result = await asyncio.get_event_loop().run_in_executor(None, checker.run_checkout, site, card)
+                results.append(result)
+            except Exception as e:
+                results.append(CheckResult(card="", shop_url=site, status=CheckStatus.ERROR, error=e))
+            await asyncio.sleep(0.3)
+        
+        charged = sum(1 for r in results if r.status == CheckStatus.CHARGED)
+        approved = sum(1 for r in results if r.status == CheckStatus.APPROVED)
+        declined = sum(1 for r in results if r.status == CheckStatus.DECLINED)
+        errors = sum(1 for r in results if r.status == CheckStatus.ERROR)
+        
+        with open(RESULTS_PATH, "a") as f:
+            f.write(f"\n--- File Check at {datetime.now()} ---\n")
+            for r in results:
+                f.write(f"{r.shop_url} | {r.status.name} | {r.amount}\n")
+        
+        await progress_msg.edit_text(
+            f"<b>📊 File Check Complete!</b>\n\n"
+            f"📁 <b>Sites:</b> {len(results)}\n"
+            f"✅ <b>Charged:</b> {charged}\n"
+            f"⚠️ <b>Approved:</b> {approved}\n"
+            f"❌ <b>Declined:</b> {declined}\n"
+            f"🔴 <b>Errors:</b> {errors}\n\n"
+            f"📁 Results saved to {RESULTS_PATH}",
             parse_mode='HTML'
         )
-        return
     
-    site = args[0].strip()
-    if not site.startswith(('http://', 'https://')):
-        site = 'https://' + site
-    
-    if delete_site(site):
-        await update.message.reply_text(f"✅ Removed site: <code>{site}</code>", parse_mode='HTML')
-    else:
-        await update.message.reply_text(f"❌ Site not found: <code>{site}</code>", parse_mode='HTML')
-
-# ─── /sites ───────────────────────────────────────────────────────────
-async def list_sites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    sites = load_sites()
-    if not sites:
-        await update.message.reply_text("📁 No sites in sites.txt")
-        return
-    
-    msg = f"📁 <b>Sites ({len(sites)})</b>:\n\n"
-    for i, site in enumerate(sites, 1):
-        msg += f"{i}. <code>{site}</code>\n"
-        if len(msg) > 3500:
-            msg += "\n... (truncated)"
-            break
-    
-    await update.message.reply_text(msg, parse_mode='HTML')
-
-# ─── /chksite ─────────────────────────────────────────────────────────
-async def check_site(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "❌ Please provide a site URL.\n"
-            "Example: <code>/chksite https://example.myshopify.com</code>",
-            parse_mode='HTML'
-        )
-        return
-    
-    site = args[0].strip()
-    if not site.startswith(('http://', 'https://')):
-        site = 'https://' + site
-    
-    await update.message.reply_text(f"🔍 Checking <code>{site}</code>...", parse_mode='HTML')
-    
-    result = await asyncio.get_event_loop().run_in_executor(None, check_site_status, site)
-    
-    emoji = "✅" if result['status'] == "online" else "❌"
-    await update.message.reply_text(
-        f"{emoji} <b>Site Check Result</b>\n\n"
-        f"🛒 <b>URL:</b> <code>{site}</code>\n"
-        f"📊 <b>Status:</b> {result['status']}\n"
-        f"📝 <b>Code:</b> {result['code']}\n"
-        f"🔍 <b>Type:</b> {result['type']}",
-        parse_mode='HTML'
-    )
-
-# ─── /addproxy ────────────────────────────────────────────────────────
-async def add_proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "❌ Please provide a proxy.\n"
-            "Example: <code>/addproxy http://user:pass@host:port</code>",
-            parse_mode='HTML'
-        )
-        return
-    
-    proxy = args[0].strip()
-    if '://' not in proxy:
-        proxy = 'http://' + proxy
-    
-    if add_proxy(proxy):
-        await update.message.reply_text(f"✅ Added proxy: <code>{proxy}</code>", parse_mode='HTML')
-    else:
-        await update.message.reply_text(f"⚠️ Proxy already exists: <code>{proxy}</code>", parse_mode='HTML')
-
-# ─── /delproxy ────────────────────────────────────────────────────────
-async def del_proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "❌ Please provide a proxy.\n"
-            "Example: <code>/delproxy http://user:pass@host:port</code>",
-            parse_mode='HTML'
-        )
-        return
-    
-    proxy = args[0].strip()
-    if '://' not in proxy:
-        proxy = 'http://' + proxy
-    
-    if delete_proxy(proxy):
-        await update.message.reply_text(f"✅ Removed proxy: <code>{proxy}</code>", parse_mode='HTML')
-    else:
-        await update.message.reply_text(f"❌ Proxy not found: <code>{proxy}</code>", parse_mode='HTML')
-
-# ─── /proxies ────────────────────────────────────────────────────────
-async def list_proxies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    proxies = load_proxies()
-    if not proxies:
-        await update.message.reply_text("📁 No proxies in px.txt")
-        return
-    
-    msg = f"📁 <b>Proxies ({len(proxies)})</b>:\n\n"
-    for i, proxy in enumerate(proxies, 1):
-        msg += f"{i}. <code>{proxy}</code>\n"
-        if len(msg) > 3500:
-            msg += "\n... (truncated)"
-            break
-    
-    await update.message.reply_text(msg, parse_mode='HTML')
-
-# ─── /chkproxy ────────────────────────────────────────────────────────
-async def check_proxy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "❌ Please provide a proxy.\n"
-            "Example: <code>/chkproxy http://user:pass@host:port</code>",
-            parse_mode='HTML'
-        )
-        return
-    
-    proxy = args[0].strip()
-    if '://' not in proxy:
-        proxy = 'http://' + proxy
-    
-    await update.message.reply_text(f"🔍 Checking proxy <code>{proxy}</code>...", parse_mode='HTML')
-    
-    result = await asyncio.get_event_loop().run_in_executor(None, check_proxy_status, proxy)
-    
-    emoji = "✅" if result['status'] == "working" else "❌"
-    await update.message.reply_text(
-        f"{emoji} <b>Proxy Check Result</b>\n\n"
-        f"🔄 <b>Proxy:</b> <code>{proxy}</code>\n"
-        f"📊 <b>Status:</b> {result['status']}\n"
-        f"🌐 <b>IP:</b> {result.get('ip', 'N/A')}\n"
-        f"📝 <b>Code:</b> {result['code']}",
-        parse_mode='HTML'
-    )
-
-# ─── Callback Handler ───────────────────────────────────────────────
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    
-    if data == "single":
-        await query.edit_message_text("🔍 Use <code>/sh &lt;site&gt;</code>", parse_mode='HTML')
-    elif data == "multi":
-        await query.edit_message_text("🚀 Starting /msh...")
-        await multi_check(update, context)
-    elif data == "file":
-        await query.edit_message_text("📁 Starting /mtxt...")
-        await file_check(update, context)
-    elif data == "dashboard":
-        await query.edit_message_text("📊 Dashboard: Type /start")
-    elif data == "profile":
-        user = update.effective_user
-        await query.edit_message_text(f"<b>👤 Profile</b>\n\nID: <code>{user.id}</code>\nName: {user.first_name}", parse_mode='HTML')
-    elif data == "admin":
-        if await is_admin(update.effective_user.id):
-            await query.edit_message_text("👑 Admin Panel: Use /start")
+    async def add_site_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/addsite https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        if add_site(site):
+            await update.message.reply_text(f"✅ Added site: <code>{site}</code>", parse_mode='HTML')
         else:
-            await query.edit_message_text("❌ Not authorized.")
-    elif data == "cmd":
-        if await is_admin(update.effective_user.id):
-            await query.edit_message_text("💻 Enter a system command.")
-            context.user_data['awaiting_cmd'] = True
-        else:
-            await query.edit_message_text("❌ Not authorized.")
-
-# ─── Message Handler ───────────────────────────────────────────────
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
+            await update.message.reply_text(f"⚠️ Site already exists: <code>{site}</code>", parse_mode='HTML')
     
-    if context.user_data.get('awaiting_cmd') and await is_admin(user_id):
-        cmd = update.message.text
+    async def del_site_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/delsite https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        if delete_site(site):
+            await update.message.reply_text(f"✅ Removed site: <code>{site}</code>", parse_mode='HTML')
+        else:
+            await update.message.reply_text(f"❌ Site not found: <code>{site}</code>", parse_mode='HTML')
+    
+    async def list_sites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        sites = load_sites()
+        if not sites:
+            await update.message.reply_text("📁 No sites in sites.txt")
+            return
+        
+        msg = f"📁 <b>Sites ({len(sites)})</b>:\n\n"
+        for i, site in enumerate(sites, 1):
+            msg += f"{i}. <code>{site}</code>\n"
+            if len(msg) > 3500:
+                msg += "\n... (truncated)"
+                break
+        
+        await update.message.reply_text(msg, parse_mode='HTML')
+    
+    async def check_site(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/chksite https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        await update.message.reply_text(f"🔍 Checking <code>{site}</code>...", parse_mode='HTML')
+        
+        result = await asyncio.get_event_loop().run_in_executor(None, check_site_status, site)
+        
+        emoji = "✅" if result['status'] == "online" else "❌"
+        await update.message.reply_text(
+            f"{emoji} <b>Site Check Result</b>\n\n"
+            f"🛒 <b>URL:</b> <code>{site}</code>\n"
+            f"📊 <b>Status:</b> {result['status']}\n"
+            f"📝 <b>Code:</b> {result['code']}\n"
+            f"🔍 <b>Type:</b> {result['type']}",
+            parse_mode='HTML'
+        )
+    
+    async def add_proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a proxy.\n"
+                "Example: <code>/addproxy http://user:pass@host:port</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        proxy = args[0].strip()
+        if '://' not in proxy:
+            proxy = 'http://' + proxy
+        
+        if add_proxy(proxy):
+            await update.message.reply_text(f"✅ Added proxy: <code>{proxy}</code>", parse_mode='HTML')
+        else:
+            await update.message.reply_text(f"⚠️ Proxy already exists: <code>{proxy}</code>", parse_mode='HTML')
+    
+    async def del_proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a proxy.\n"
+                "Example: <code>/delproxy http://user:pass@host:port</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        proxy = args[0].strip()
+        if '://' not in proxy:
+            proxy = 'http://' + proxy
+        
+        if delete_proxy(proxy):
+            await update.message.reply_text(f"✅ Removed proxy: <code>{proxy}</code>", parse_mode='HTML')
+        else:
+            await update.message.reply_text(f"❌ Proxy not found: <code>{proxy}</code>", parse_mode='HTML')
+    
+    async def list_proxies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        proxies = load_proxies()
+        if not proxies:
+            await update.message.reply_text("📁 No proxies in px.txt")
+            return
+        
+        msg = f"📁 <b>Proxies ({len(proxies)})</b>:\n\n"
+        for i, proxy in enumerate(proxies, 1):
+            msg += f"{i}. <code>{proxy}</code>\n"
+            if len(msg) > 3500:
+                msg += "\n... (truncated)"
+                break
+        
+        await update.message.reply_text(msg, parse_mode='HTML')
+    
+    async def check_proxy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        args = context.args
+        if not args:
+            await update.message.reply_text(
+                "❌ Please provide a proxy.\n"
+                "Example: <code>/chkproxy http://user:pass@host:port</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        proxy = args[0].strip()
+        if '://' not in proxy:
+            proxy = 'http://' + proxy
+        
+        await update.message.reply_text(f"🔍 Checking proxy <code>{proxy}</code>...", parse_mode='HTML')
+        
+        result = await asyncio.get_event_loop().run_in_executor(None, check_proxy_status, proxy)
+        
+        emoji = "✅" if result['status'] == "working" else "❌"
+        await update.message.reply_text(
+            f"{emoji} <b>Proxy Check Result</b>\n\n"
+            f"🔄 <b>Proxy:</b> <code>{proxy}</code>\n"
+            f"📊 <b>Status:</b> {result['status']}\n"
+            f"🌐 <b>IP:</b> {result.get('ip', 'N/A')}\n"
+            f"📝 <b>Code:</b> {result['code']}",
+            parse_mode='HTML'
+        )
+    
+    async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        query = update.callback_query
+        await query.answer()
+        data = query.data
+        
+        if data == "single":
+            await query.edit_message_text("🔍 Use <code>/sh &lt;site&gt;</code>", parse_mode='HTML')
+        elif data == "multi":
+            await query.edit_message_text("🚀 Starting /msh...")
+            await multi_check(update, context)
+        elif data == "file":
+            await query.edit_message_text("📁 Starting /mtxt...")
+            await file_check(update, context)
+        elif data == "dashboard":
+            await query.edit_message_text("📊 Dashboard: Type /start")
+        elif data == "profile":
+            user = update.effective_user
+            await query.edit_message_text(f"<b>👤 Profile</b>\n\nID: <code>{user.id}</code>\nName: {user.first_name}", parse_mode='HTML')
+        elif data == "admin":
+            if update.effective_user.id in ADMIN_IDS:
+                await query.edit_message_text("👑 Admin Panel: Use /start")
+            else:
+                await query.edit_message_text("❌ Not authorized.")
+        elif data == "cmd":
+            if update.effective_user.id in ADMIN_IDS:
+                await query.edit_message_text("💻 Enter a system command.")
+                context.user_data['awaiting_cmd'] = True
+            else:
+                await query.edit_message_text("❌ Not authorized.")
+    
+    async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user_id = update.effective_user.id
+        
+        if context.user_data.get('awaiting_cmd') and user_id in ADMIN_IDS:
+            cmd = update.message.text
+            try:
+                result = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=30)
+                output = result.stdout or result.stderr or "Done."
+                if len(output) > 4000:
+                    output = output[:4000] + "\n... (truncated)"
+                await update.message.reply_text(f"<b>💻 Output:</b>\n<pre>{output}</pre>", parse_mode='HTML')
+            except Exception as e:
+                await update.message.reply_text(f"❌ Error: {e}")
+            context.user_data['awaiting_cmd'] = False
+            return
+        
+        if update.message.text.startswith('/sh '):
+            await single_check(update, context)
+            return
+        elif update.message.text == '/msh':
+            await multi_check(update, context)
+            return
+        elif update.message.text == '/mtxt':
+            await file_check(update, context)
+            return
+        elif update.message.text.startswith('/addsite '):
+            await add_site_command(update, context)
+            return
+        elif update.message.text.startswith('/delsite '):
+            await del_site_command(update, context)
+            return
+        elif update.message.text == '/sites':
+            await list_sites(update, context)
+            return
+        elif update.message.text.startswith('/chksite '):
+            await check_site(update, context)
+            return
+        elif update.message.text.startswith('/addproxy '):
+            await add_proxy_command(update, context)
+            return
+        elif update.message.text.startswith('/delproxy '):
+            await del_proxy_command(update, context)
+            return
+        elif update.message.text == '/proxies':
+            await list_proxies(update, context)
+            return
+        elif update.message.text.startswith('/chkproxy '):
+            await check_proxy(update, context)
+            return
+        
+        await update.message.reply_text("Use /start for commands.")
+    
+    async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logging.error(f"Error: {context.error}")
         try:
-            result = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=30)
-            output = result.stdout or result.stderr or "Done."
-            if len(output) > 4000:
-                output = output[:4000] + "\n... (truncated)"
-            await update.message.reply_text(f"<b>💻 Output:</b>\n<pre>{output}</pre>", parse_mode='HTML')
-        except Exception as e:
-            await update.message.reply_text(f"❌ Error: {e}")
-        context.user_data['awaiting_cmd'] = False
-        return
-    
-    if update.message.text.startswith('/sh '):
-        await single_check(update, context)
-        return
-    elif update.message.text == '/msh':
-        await multi_check(update, context)
-        return
-    elif update.message.text == '/mtxt':
-        await file_check(update, context)
-        return
-    elif update.message.text.startswith('/addsite '):
-        await add_site_command(update, context)
-        return
-    elif update.message.text.startswith('/delsite '):
-        await del_site_command(update, context)
-        return
-    elif update.message.text == '/sites':
-        await list_sites(update, context)
-        return
-    elif update.message.text.startswith('/chksite '):
-        await check_site(update, context)
-        return
-    elif update.message.text.startswith('/addproxy '):
-        await add_proxy_command(update, context)
-        return
-    elif update.message.text.startswith('/delproxy '):
-        await del_proxy_command(update, context)
-        return
-    elif update.message.text == '/proxies':
-        await list_proxies(update, context)
-        return
-    elif update.message.text.startswith('/chkproxy '):
-        await check_proxy(update, context)
-        return
-    
-    await update.message.reply_text("Use /start for commands.")
+            await update.message.reply_text("⚠️ An error occurred. Please try again.")
+        except:
+            pass
 
-# ─── Error Handler ──────────────────────────────────────────────────
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logging.error(f"Error: {context.error}")
-    try:
-        await update.message.reply_text("⚠️ An error occurred. Please try again.")
-    except:
-        pass
+# ─── V13 STYLE HANDLERS ────────────────────────────────────────────
+else:
+    def start(update, context):
+        user_id = update.effective_user.id
+        user_sessions[user_id] = {"state": "main"}
+        
+        keyboard = [
+            [InlineKeyboardButton("🔍 /sh <site> - Single", callback_data="single")],
+            [InlineKeyboardButton("🚀 /msh - Multi 20 Sites", callback_data="multi")],
+            [InlineKeyboardButton("📁 /mtxt - File Checker", callback_data="file")],
+            [InlineKeyboardButton("📊 Dashboard", callback_data="dashboard")],
+            [InlineKeyboardButton("👤 Profile", callback_data="profile")],
+        ]
+        if update.effective_user.id in ADMIN_IDS:
+            keyboard.append([InlineKeyboardButton("👑 Admin", callback_data="admin")])
+            keyboard.append([InlineKeyboardButton("💻 /cmd", callback_data="cmd")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(
+            f"<b>🐱 Shadow Hacker Bot v6.2 - LEGACY</b>\n\n"
+            f"Welcome, <b>{update.effective_user.first_name}</b>!\n\n"
+            f"<b>Commands:</b>\n"
+            f"<code>/sh &lt;site&gt;</code> - Single checkout\n"
+            f"<code>/msh</code> - Check 20 random sites\n"
+            f"<code>/mtxt</code> - Check sites from sites.txt\n"
+            f"<code>/addsite &lt;url&gt;</code> - Add site\n"
+            f"<code>/delsite &lt;url&gt;</code> - Remove site\n"
+            f"<code>/sites</code> - List sites\n"
+            f"<code>/chksite &lt;url&gt;</code> - Check site\n"
+            f"<code>/addproxy &lt;proxy&gt;</code> - Add proxy\n"
+            f"<code>/delproxy &lt;proxy&gt;</code> - Remove proxy\n"
+            f"<code>/proxies</code> - List proxies\n"
+            f"<code>/chkproxy &lt;proxy&gt;</code> - Check proxy",
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+        )
+    
+    def single_check(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/sh https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        update.message.reply_text(f"🔍 Starting single check on <b>{site}</b>...", parse_mode='HTML')
+        
+        cards = load_cards()
+        if not cards:
+            update.message.reply_text("❌ No cards found. Add cards to test.txt")
+            return
+        
+        card = random.choice(cards)
+        
+        try:
+            checker = ShopifyChecker()
+            result = checker.run_checkout(site, card)
+            
+            status_emoji = "✅" if result.status == CheckStatus.CHARGED else "⚠️" if result.status == CheckStatus.APPROVED else "❌" if result.status == CheckStatus.DECLINED else "🔴"
+            
+            update.message.reply_text(
+                f"<b>📊 Single Check Result</b>\n\n"
+                f"🛒 <b>Site:</b> {result.shop_url}\n"
+                f"💳 <b>Card:</b> {result.card[:10]}...\n"
+                f"{status_emoji} <b>Status:</b> {result.status.name}\n"
+                f"📝 <b>Code:</b> {result.status_code or 'N/A'}\n"
+                f"💰 <b>Amount:</b> ${result.amount} {result.currency}\n"
+                f"🌍 <b>Country:</b> {result.site_name}\n\n"
+                f"<i>Time: {datetime.now().strftime('%H:%M:%S')}</i>",
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            update.message.reply_text(f"❌ Error: {str(e)}")
+    
+    def multi_check(update, context):
+        update.message.reply_text("🚀 Starting multi-check on 20 random sites...")
+        
+        cards = load_cards()
+        if not cards:
+            update.message.reply_text("❌ No cards found.")
+            return
+        
+        sites = get_random_sites(20)
+        if not sites:
+            update.message.reply_text("❌ No sites available.")
+            return
+        
+        progress_msg = update.message.reply_text("⏳ Processing 20 sites... 0/20")
+        results = []
+        completed = 0
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_site = {}
+            for site in sites:
+                card = random.choice(cards)
+                checker = ShopifyChecker()
+                future = executor.submit(checker.run_checkout, site, card)
+                future_to_site[future] = site
+            
+            for future in concurrent.futures.as_completed(future_to_site):
+                site = future_to_site[future]
+                try:
+                    result = future.result(timeout=120)
+                    results.append(result)
+                    completed += 1
+                    if completed % 2 == 0 or completed == len(sites):
+                        progress_msg.edit_text(f"⏳ Processing 20 sites... {completed}/{len(sites)}")
+                except Exception as e:
+                    results.append(CheckResult(card="", shop_url=site, status=CheckStatus.ERROR, error=e))
+                    completed += 1
+        
+        charged = sum(1 for r in results if r.status == CheckStatus.CHARGED)
+        approved = sum(1 for r in results if r.status == CheckStatus.APPROVED)
+        declined = sum(1 for r in results if r.status == CheckStatus.DECLINED)
+        errors = sum(1 for r in results if r.status == CheckStatus.ERROR)
+        
+        with open(RESULTS_PATH, "a") as f:
+            f.write(f"\n--- Multi Check at {datetime.now()} ---\n")
+            for r in results:
+                f.write(f"{r.shop_url} | {r.status.name} | {r.amount}\n")
+        
+        progress_msg.edit_text(
+            f"<b>📊 Multi-Check Complete!</b>\n\n"
+            f"🛒 <b>Sites:</b> {len(results)}\n"
+            f"✅ <b>Charged:</b> {charged}\n"
+            f"⚠️ <b>Approved:</b> {approved}\n"
+            f"❌ <b>Declined:</b> {declined}\n"
+            f"🔴 <b>Errors:</b> {errors}\n\n"
+            f"📁 Results saved to {RESULTS_PATH}",
+            parse_mode='HTML'
+        )
+    
+    def file_check(update, context):
+        sites = load_sites()
+        if not sites:
+            update.message.reply_text(f"❌ No sites in <code>{SITES_PATH}</code>", parse_mode='HTML')
+            return
+        
+        cards = load_cards()
+        if not cards:
+            update.message.reply_text("❌ No cards found.")
+            return
+        
+        update.message.reply_text(f"📁 Starting file checker on <b>{len(sites)}</b> sites...", parse_mode='HTML')
+        progress_msg = update.message.reply_text("⏳ Starting... 0/{}".format(len(sites)))
+        
+        results = []
+        for idx, site in enumerate(sites, 1):
+            progress_msg.edit_text(f"⏳ Checking {idx}/{len(sites)}: {site[:40]}...")
+            card = random.choice(cards)
+            try:
+                checker = ShopifyChecker()
+                result = checker.run_checkout(site, card)
+                results.append(result)
+            except Exception as e:
+                results.append(CheckResult(card="", shop_url=site, status=CheckStatus.ERROR, error=e))
+            time.sleep(0.3)
+        
+        charged = sum(1 for r in results if r.status == CheckStatus.CHARGED)
+        approved = sum(1 for r in results if r.status == CheckStatus.APPROVED)
+        declined = sum(1 for r in results if r.status == CheckStatus.DECLINED)
+        errors = sum(1 for r in results if r.status == CheckStatus.ERROR)
+        
+        with open(RESULTS_PATH, "a") as f:
+            f.write(f"\n--- File Check at {datetime.now()} ---\n")
+            for r in results:
+                f.write(f"{r.shop_url} | {r.status.name} | {r.amount}\n")
+        
+        progress_msg.edit_text(
+            f"<b>📊 File Check Complete!</b>\n\n"
+            f"📁 <b>Sites:</b> {len(results)}\n"
+            f"✅ <b>Charged:</b> {charged}\n"
+            f"⚠️ <b>Approved:</b> {approved}\n"
+            f"❌ <b>Declined:</b> {declined}\n"
+            f"🔴 <b>Errors:</b> {errors}\n\n"
+            f"📁 Results saved to {RESULTS_PATH}",
+            parse_mode='HTML'
+        )
+    
+    def add_site_command(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/addsite https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        if add_site(site):
+            update.message.reply_text(f"✅ Added site: <code>{site}</code>", parse_mode='HTML')
+        else:
+            update.message.reply_text(f"⚠️ Site already exists: <code>{site}</code>", parse_mode='HTML')
+    
+    def del_site_command(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/delsite https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        if delete_site(site):
+            update.message.reply_text(f"✅ Removed site: <code>{site}</code>", parse_mode='HTML')
+        else:
+            update.message.reply_text(f"❌ Site not found: <code>{site}</code>", parse_mode='HTML')
+    
+    def list_sites(update, context):
+        sites = load_sites()
+        if not sites:
+            update.message.reply_text("📁 No sites in sites.txt")
+            return
+        
+        msg = f"📁 <b>Sites ({len(sites)})</b>:\n\n"
+        for i, site in enumerate(sites, 1):
+            msg += f"{i}. <code>{site}</code>\n"
+            if len(msg) > 3500:
+                msg += "\n... (truncated)"
+                break
+        
+        update.message.reply_text(msg, parse_mode='HTML')
+    
+    def check_site(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a site URL.\n"
+                "Example: <code>/chksite https://example.myshopify.com</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        site = args[0].strip()
+        if not site.startswith(('http://', 'https://')):
+            site = 'https://' + site
+        
+        update.message.reply_text(f"🔍 Checking <code>{site}</code>...", parse_mode='HTML')
+        
+        result = check_site_status(site)
+        
+        emoji = "✅" if result['status'] == "online" else "❌"
+        update.message.reply_text(
+            f"{emoji} <b>Site Check Result</b>\n\n"
+            f"🛒 <b>URL:</b> <code>{site}</code>\n"
+            f"📊 <b>Status:</b> {result['status']}\n"
+            f"📝 <b>Code:</b> {result['code']}\n"
+            f"🔍 <b>Type:</b> {result['type']}",
+            parse_mode='HTML'
+        )
+    
+    def add_proxy_command(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a proxy.\n"
+                "Example: <code>/addproxy http://user:pass@host:port</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        proxy = args[0].strip()
+        if '://' not in proxy:
+            proxy = 'http://' + proxy
+        
+        if add_proxy(proxy):
+            update.message.reply_text(f"✅ Added proxy: <code>{proxy}</code>", parse_mode='HTML')
+        else:
+            update.message.reply_text(f"⚠️ Proxy already exists: <code>{proxy}</code>", parse_mode='HTML')
+    
+    def del_proxy_command(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a proxy.\n"
+                "Example: <code>/delproxy http://user:pass@host:port</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        proxy = args[0].strip()
+        if '://' not in proxy:
+            proxy = 'http://' + proxy
+        
+        if delete_proxy(proxy):
+            update.message.reply_text(f"✅ Removed proxy: <code>{proxy}</code>", parse_mode='HTML')
+        else:
+            update.message.reply_text(f"❌ Proxy not found: <code>{proxy}</code>", parse_mode='HTML')
+    
+    def list_proxies(update, context):
+        proxies = load_proxies()
+        if not proxies:
+            update.message.reply_text("📁 No proxies in px.txt")
+            return
+        
+        msg = f"📁 <b>Proxies ({len(proxies)})</b>:\n\n"
+        for i, proxy in enumerate(proxies, 1):
+            msg += f"{i}. <code>{proxy}</code>\n"
+            if len(msg) > 3500:
+                msg += "\n... (truncated)"
+                break
+        
+        update.message.reply_text(msg, parse_mode='HTML')
+    
+    def check_proxy(update, context):
+        args = context.args
+        if not args:
+            update.message.reply_text(
+                "❌ Please provide a proxy.\n"
+                "Example: <code>/chkproxy http://user:pass@host:port</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        proxy = args[0].strip()
+        if '://' not in proxy:
+            proxy = 'http://' + proxy
+        
+        update.message.reply_text(f"🔍 Checking proxy <code>{proxy}</code>...", parse_mode='HTML')
+        
+        result = check_proxy_status(proxy)
+        
+        emoji = "✅" if result['status'] == "working" else "❌"
+        update.message.reply_text(
+            f"{emoji} <b>Proxy Check Result</b>\n\n"
+            f"🔄 <b>Proxy:</b> <code>{proxy}</code>\n"
+            f"📊 <b>Status:</b> {result['status']}\n"
+            f"🌐 <b>IP:</b> {result.get('ip', 'N/A')}\n"
+            f"📝 <b>Code:</b> {result['code']}",
+            parse_mode='HTML'
+        )
+    
+    def button_handler(update, context):
+        query = update.callback_query
+        query.answer()
+        data = query.data
+        
+        if data == "single":
+            query.edit_message_text("🔍 Use <code>/sh &lt;site&gt;</code>", parse_mode='HTML')
+        elif data == "multi":
+            query.edit_message_text("🚀 Starting /msh...")
+            multi_check(update, context)
+        elif data == "file":
+            query.edit_message_text("📁 Starting /mtxt...")
+            file_check(update, context)
+        elif data == "dashboard":
+            query.edit_message_text("📊 Dashboard: Type /start")
+        elif data == "profile":
+            user = update.effective_user
+            query.edit_message_text(f"<b>👤 Profile</b>\n\nID: <code>{user.id}</code>\nName: {user.first_name}", parse_mode='HTML')
+        elif data == "admin":
+            if update.effective_user.id in ADMIN_IDS:
+                query.edit_message_text("👑 Admin Panel: Use /start")
+            else:
+                query.edit_message_text("❌ Not authorized.")
+        elif data == "cmd":
+            if update.effective_user.id in ADMIN_IDS:
+                query.edit_message_text("💻 Enter a system command.")
+                context.user_data['awaiting_cmd'] = True
+            else:
+                query.edit_message_text("❌ Not authorized.")
+    
+    def handle_message(update, context):
+        user_id = update.effective_user.id
+        
+        if context.user_data.get('awaiting_cmd') and user_id in ADMIN_IDS:
+            cmd = update.message.text
+            try:
+                result = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=30)
+                output = result.stdout or result.stderr or "Done."
+                if len(output) > 4000:
+                    output = output[:4000] + "\n... (truncated)"
+                update.message.reply_text(f"<b>💻 Output:</b>\n<pre>{output}</pre>", parse_mode='HTML')
+            except Exception as e:
+                update.message.reply_text(f"❌ Error: {e}")
+            context.user_data['awaiting_cmd'] = False
+            return
+        
+        if update.message.text.startswith('/sh '):
+            single_check(update, context)
+            return
+        elif update.message.text == '/msh':
+            multi_check(update, context)
+            return
+        elif update.message.text == '/mtxt':
+            file_check(update, context)
+            return
+        elif update.message.text.startswith('/addsite '):
+            add_site_command(update, context)
+            return
+        elif update.message.text.startswith('/delsite '):
+            del_site_command(update, context)
+            return
+        elif update.message.text == '/sites':
+            list_sites(update, context)
+            return
+        elif update.message.text.startswith('/chksite '):
+            check_site(update, context)
+            return
+        elif update.message.text.startswith('/addproxy '):
+            add_proxy_command(update, context)
+            return
+        elif update.message.text.startswith('/delproxy '):
+            del_proxy_command(update, context)
+            return
+        elif update.message.text == '/proxies':
+            list_proxies(update, context)
+            return
+        elif update.message.text.startswith('/chkproxy '):
+            check_proxy(update, context)
+            return
+        
+        update.message.reply_text("Use /start for commands.")
+    
+    def error_handler(update, context):
+        logging.error(f"Error: {context.error}")
+        try:
+            update.message.reply_text("⚠️ An error occurred. Please try again.")
+        except:
+            pass
 
 # ──────────────────────── MAIN ─────────────────────────────────────
 def main():
-    print("🐱 Shadow Hacker Bot v6.1 - UNIVERSAL EDITION")
+    print("🐱 Shadow Hacker Bot v6.2 - LEGACY COMPATIBLE")
     print(f"📦 curl_cffi: {'✅ Available' if CURL_CFFI_AVAILABLE else '❌ Using fallback'}")
+    print(f"📦 Telegram API: {'v20+' if TELEGRAM_V20 else 'v13 (Legacy)'}")
     print("Commands: /sh, /msh, /mtxt, /addsite, /delsite, /sites, /chksite")
     print("          /addproxy, /delproxy, /proxies, /chkproxy")
     
@@ -2037,33 +2468,50 @@ def main():
             with open(path, 'w') as f:
                 f.write("# Add your data here\n")
     
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Checker commands
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("sh", single_check))
-    application.add_handler(CommandHandler("msh", multi_check))
-    application.add_handler(CommandHandler("mtxt", file_check))
-    
-    # Site management
-    application.add_handler(CommandHandler("addsite", add_site_command))
-    application.add_handler(CommandHandler("delsite", del_site_command))
-    application.add_handler(CommandHandler("sites", list_sites))
-    application.add_handler(CommandHandler("chksite", check_site))
-    
-    # Proxy management
-    application.add_handler(CommandHandler("addproxy", add_proxy_command))
-    application.add_handler(CommandHandler("delproxy", del_proxy_command))
-    application.add_handler(CommandHandler("proxies", list_proxies))
-    application.add_handler(CommandHandler("chkproxy", check_proxy))
-    
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    application.add_error_handler(error_handler)
-    
-    print("✅ Bot is running! All commands ready.")
-    print(f"🤖 Bot Token: {BOT_TOKEN[:10]}...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    if TELEGRAM_V20:
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("sh", single_check))
+        application.add_handler(CommandHandler("msh", multi_check))
+        application.add_handler(CommandHandler("mtxt", file_check))
+        application.add_handler(CommandHandler("addsite", add_site_command))
+        application.add_handler(CommandHandler("delsite", del_site_command))
+        application.add_handler(CommandHandler("sites", list_sites))
+        application.add_handler(CommandHandler("chksite", check_site))
+        application.add_handler(CommandHandler("addproxy", add_proxy_command))
+        application.add_handler(CommandHandler("delproxy", del_proxy_command))
+        application.add_handler(CommandHandler("proxies", list_proxies))
+        application.add_handler(CommandHandler("chkproxy", check_proxy))
+        application.add_handler(CallbackQueryHandler(button_handler))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_error_handler(error_handler)
+        
+        print("✅ Bot is running! (v20+ mode)")
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    else:
+        updater = Updater(BOT_TOKEN, use_context=True)
+        dp = updater.dispatcher
+        
+        dp.add_handler(CommandHandler("start", start))
+        dp.add_handler(CommandHandler("sh", single_check))
+        dp.add_handler(CommandHandler("msh", multi_check))
+        dp.add_handler(CommandHandler("mtxt", file_check))
+        dp.add_handler(CommandHandler("addsite", add_site_command))
+        dp.add_handler(CommandHandler("delsite", del_site_command))
+        dp.add_handler(CommandHandler("sites", list_sites))
+        dp.add_handler(CommandHandler("chksite", check_site))
+        dp.add_handler(CommandHandler("addproxy", add_proxy_command))
+        dp.add_handler(CommandHandler("delproxy", del_proxy_command))
+        dp.add_handler(CommandHandler("proxies", list_proxies))
+        dp.add_handler(CommandHandler("chkproxy", check_proxy))
+        dp.add_handler(CallbackQueryHandler(button_handler))
+        dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+        dp.add_error_handler(error_handler)
+        
+        print("✅ Bot is running! (v13 legacy mode)")
+        updater.start_polling()
+        updater.idle()
 
 if __name__ == "__main__":
     main()
