@@ -1,2 +1,5 @@
-
-pip install requests colorama urllib3 aiohttp bs4
+requests
+colorama
+urllib3
+aiohttp
+bs4
