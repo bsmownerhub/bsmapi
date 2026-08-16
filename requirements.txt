@@ -1,4 +1,5 @@
 telegram
+update
 requests
 curl_cffi
 flask
